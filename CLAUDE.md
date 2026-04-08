@@ -13,6 +13,12 @@ resultaat in Excel plakte, uploadde in een React tool en handmatig op verzenden 
 - Berichten via: TextMeBot API (WhatsApp, eigen nummer gekoppeld)
 - Eigen WhatsApp nummer: via `.env` ingesteld (ontvangt ook samenvattingsberichten)
 
+## Repo hygiene
+- Deze repository mag publiek blijven.
+- Commit geen interne telefoonnummers, interne IP-adressen, database-namen, contactmailadressen of andere operationele identifiers.
+- Gevoelige waarden horen alleen in `.env` of andere niet-getrackte lokale configuratie.
+- Publieke documentatie gebruikt placeholders zoals `<db-server>`, `<db-naam>` en `<samenvattingsnummer>`.
+
 ## Technische stack
 - Python 3.12+
 - pyodbc (SQL Server via Windows Authentication)
