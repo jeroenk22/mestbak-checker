@@ -29,7 +29,7 @@ MIDDAG_START = 12
 AVOND_START = 18
 
 # ─── Vertraging tussen berichten (spam preventie) ────────────────────────────
-DELAY_BETWEEN_MESSAGES = 4  # seconden tussen elk WhatsApp bericht
+DELAY_BETWEEN_MESSAGES = 8  # seconden tussen elk WhatsApp bericht
 
 # ─── TextMeBot instellingen ──────────────────────────────────────────────────
 TEXTMEBOT_API_KEY = os.getenv("TEXTMEBOT_API_KEY", "")
@@ -43,7 +43,7 @@ SUMMARY_PHONE = os.getenv("SUMMARY_PHONE", "")  # bijv. +31612345678
 DB_SERVER = os.getenv("DB_SERVER", "")
 DB_NAME = os.getenv("DB_NAME", "")
 DB_CLIENT_NO = int(os.getenv("DB_CLIENT_NO") or 0)
-DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
+DB_DRIVER = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
 
 # ─── Bestandspaden ───────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
