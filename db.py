@@ -1,6 +1,6 @@
 """
 db.py - Database connectie en query voor mestbak-checker
-Verbinding via Windows Authentication (ODBC Driver 17).
+Verbinding via Windows Authentication (ODBC, driver via .env).
 Query wordt geladen vanuit sql/query.sql.
 """
 
@@ -26,6 +26,7 @@ def get_connection():
         f"SERVER={DB_SERVER};"
         f"DATABASE={DB_NAME};"
         "Trusted_Connection=yes;"
+        "TrustServerCertificate=yes;"
     )
     try:
         conn = pyodbc.connect(conn_str, timeout=30)
