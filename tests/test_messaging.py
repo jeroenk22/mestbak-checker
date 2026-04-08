@@ -34,8 +34,8 @@ BE_HOLIDAYS = [
 ]
 DE_HOLIDAYS = [
     {"date": "2026-10-03", "localName": "Tag der Deutschen Einheit", "types": ["Public"], "counties": None},
-    {"date": "2026-11-01", "localName": "Allerheiligen", "types": ["Public"], "counties": ["NW", "NI"]},
-    {"date": "2026-04-06", "localName": "Ostermontag", "types": ["Public"], "counties": ["NW", "NI"]},
+    {"date": "2026-11-01", "localName": "Allerheiligen", "types": ["Public"], "counties": ["DE-NW", "DE-BY", "DE-BW", "DE-RP", "DE-SL"]},
+    {"date": "2026-04-06", "localName": "Ostermontag", "types": ["Public"], "counties": ["DE-NW", "DE-NI", "DE-BY", "DE-BW"]},
 ]
 
 
@@ -139,13 +139,8 @@ def run_live_tests():
         ("DE - Dag voor Koningsdag (NL feestdag, DE werkdag)", TEST_PHONE_DE, "DE",
          checker.get_holiday_scenario(before_koningsdag, "DE"), before_koningsdag),
 
-        ("DE - Dag voor Tag der Deutschen Einheit (werkdag)", TEST_PHONE_DE, "DE",
-         {  # 2 okt is vrijdag, maar morgen = zaterdag (weekend) voor de test
-            "scenario": "country_holiday",
-            "next_workday": date(2026, 10, 3),
-            "nl_holiday_name": "",
-            "tomorrow_is_weekend": False,
-         }, date(2026, 10, 2)),
+        ("DE - 2 okt (vrijdag voor 3-okt-weekend)", TEST_PHONE_DE, "DE",
+         checker.get_holiday_scenario(before_de_unity, "DE"), before_de_unity),
 
         ("DE - Dag voor Paasmaandag (beide landen feestdag)", TEST_PHONE_DE, "DE",
          checker.get_holiday_scenario(before_pasen, "DE"), before_pasen),

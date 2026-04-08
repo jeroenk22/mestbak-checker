@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import date
 from unittest.mock import patch, MagicMock
-from holidays import HolidayChecker, _is_holiday_for_date
+from holidays import HolidayChecker, _is_holiday_for_date, get_public_holidays
 
 
 # ─── Mock feestdagendata ─────────────────────────────────────────────────────
@@ -217,6 +217,72 @@ def test_next_workday():
     print("✅ test_next_workday geslaagd")
 
 
+def test_get_public_holidays_filters_types():
+    """get_public_holidays() behoudt alleen Public-feestdagen, filtert Bank/School weg."""
+    raw = [
+        {"date": "2026-01-01", "localName": "Nieuwjaarsdag", "types": ["Public"], "counties": None},
+        {"date": "2026-12-26", "localName": "Tweede Kerstdag", "types": ["Bank"], "counties": None},
+        {"date": "2026-09-01", "localName": "Schooldag", "types": ["School"], "counties": None},
+    ]
+    mock_response = MagicMock()
+    mock_response.json.return_value = raw
+    mock_response.raise_for_status.return_value = None
+
+    with patch("holidays.requests.get", return_value=mock_response):
+        result = get_public_holidays("NL", 2026)
+
+    assert len(result) == 1
+    assert result[0]["localName"] == "Nieuwjaarsdag"
+    print("✅ test_get_public_holidays_filters_types geslaagd")
+
+
+def test_get_public_holidays_regional_counties():
+    """get_public_holidays() geeft counties ongewijzigd terug; _is_holiday_for_date filtert op DE-XX."""
+    raw = [
+        {"date": "2026-11-01", "localName": "Allerheiligen", "types": ["Public"],
+         "counties": ["DE-NW", "DE-BY", "DE-BW"]},   # NRW wel, Niedersachsen niet
+        {"date": "2026-10-31", "localName": "Reformationstag", "types": ["Public"],
+         "counties": ["DE-BY"]},                       # Geen NRW of NI
+    ]
+    mock_response = MagicMock()
+    mock_response.json.return_value = raw
+    mock_response.raise_for_status.return_value = None
+
+    with patch("holidays.requests.get", return_value=mock_response):
+        holidays = get_public_holidays("DE", 2026)
+
+    from config import DE_REGIONS  # ["DE-NW", "DE-NI"]
+    # Allerheiligen: DE-NW matcht → feestdag voor onze regio
+    is_hol, name = _is_holiday_for_date(date(2026, 11, 1), holidays, regions=DE_REGIONS)
+    assert is_hol, "Allerheiligen (DE-NW) moet herkend worden"
+    assert name == "Allerheiligen"
+
+    # Reformationstag: alleen DE-BY, niet NRW/NI → geen feestdag voor onze regio
+    is_hol2, _ = _is_holiday_for_date(date(2026, 10, 31), holidays, regions=DE_REGIONS)
+    assert not is_hol2, "Reformationstag (alleen DE-BY) mag niet herkend worden"
+    print("✅ test_get_public_holidays_regional_counties geslaagd")
+
+
+def test_get_public_holidays_national_null_counties():
+    """Feestdag met counties=None geldt landelijk, ook bij regiofilter."""
+    raw = [
+        {"date": "2026-10-03", "localName": "Tag der Deutschen Einheit",
+         "types": ["Public"], "counties": None},
+    ]
+    mock_response = MagicMock()
+    mock_response.json.return_value = raw
+    mock_response.raise_for_status.return_value = None
+
+    with patch("holidays.requests.get", return_value=mock_response):
+        holidays = get_public_holidays("DE", 2026)
+
+    from config import DE_REGIONS
+    is_hol, name = _is_holiday_for_date(date(2026, 10, 3), holidays, regions=DE_REGIONS)
+    assert is_hol, "Nationale feestdag (counties=None) moet altijd matchen"
+    assert name == "Tag der Deutschen Einheit"
+    print("✅ test_get_public_holidays_national_null_counties geslaagd")
+
+
 def run_all_tests():
     print("\n" + "=" * 60)
     print("TESTS: holidays.py")
@@ -235,6 +301,9 @@ def run_all_tests():
         test_scenario_weekend,
         test_scenario_de_unity_day_weekend,
         test_next_workday,
+        test_get_public_holidays_filters_types,
+        test_get_public_holidays_regional_counties,
+        test_get_public_holidays_national_null_counties,
     ]
     passed = 0
     failed = 0
