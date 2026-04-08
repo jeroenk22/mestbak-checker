@@ -72,6 +72,29 @@ def resolve_number(mobile_raw: str, phone_raw: str) -> list[tuple[str, str, str]
     return numbers
 
 
+def warn_if_duplicate_test_numbers():
+    """Log een waarschuwing als testnummers op hetzelfde genormaliseerde nummer uitkomen."""
+    labels = {
+        "TEST_PHONE_NL": TEST_PHONE_NL,
+        "TEST_PHONE_BE": TEST_PHONE_BE,
+        "TEST_PHONE_DE": TEST_PHONE_DE,
+    }
+    normalized_map = {}
+
+    for label, raw in labels.items():
+        normalized = normalize_phone(raw)
+        if not normalized:
+            continue
+        normalized_map.setdefault(normalized, []).append(label)
+
+    for normalized, used_by in normalized_map.items():
+        if len(used_by) > 1:
+            logger.warning(
+                f"Testnummers delen hetzelfde nummer {normalized}: {', '.join(used_by)}. "
+                "Deduplicatie zal extra testklanten overslaan."
+            )
+
+
 def run():
     start_time = time.time()
     now = datetime.now()
@@ -81,6 +104,8 @@ def run():
     logger.info("=" * 60)
     logger.info(f"Mestbak-checker gestart — {run_date}")
     logger.info(f"Testmodus: {'AAN' if TEST_MODE else 'UIT'}")
+    if TEST_MODE:
+        warn_if_duplicate_test_numbers()
 
     # ── Stap 1: Cutoff check ─────────────────────────────────────────────────
     cutoff = now.replace(hour=MAX_CUTOFF_HOUR, minute=MAX_CUTOFF_MINUTE, second=0)

@@ -4,13 +4,19 @@ Met URL encoding, timeout en foutafhandeling.
 """
 
 import time
-import requests
 from urllib.parse import quote
-from logger import logger
+
+import requests
+
 from config import (
-    TEXTMEBOT_API_KEY, TEXTMEBOT_API_URL,
-    TEXTMEBOT_TIMEOUT, DELAY_BETWEEN_MESSAGES
+    DELAY_BETWEEN_MESSAGES,
+    TEXTMEBOT_API_KEY,
+    TEXTMEBOT_API_URL,
+    TEXTMEBOT_TIMEOUT,
 )
+from logger import logger
+
+_TEXTMEBOT_MIN_INTERVAL_SECONDS = 5
 
 
 def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[bool, str]:
@@ -20,7 +26,7 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
     Args:
         phone: E.164 telefoonnummer (+31612345678)
         message: Berichttekst (wordt automatisch URL-encoded)
-        skip_delay: Sla de delay over (bijv. voor samenvattingsberichten)
+        skip_delay: Sla de delay over als dit expliciet gewenst is
 
     Returns:
         (succes: bool, detail: str)
@@ -31,7 +37,8 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
     if not phone:
         return False, "Leeg telefoonnummer"
 
-    # URL-encode met expliciete UTF-8 voor speciale tekens (ë, ü, ä, etc.)
+    effective_delay = max(DELAY_BETWEEN_MESSAGES, _TEXTMEBOT_MIN_INTERVAL_SECONDS)
+
     encoded_message = quote(message, encoding="utf-8")
     encoded_phone = quote(phone, encoding="utf-8")
 
@@ -45,25 +52,23 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
     try:
         response = requests.get(url, timeout=TEXTMEBOT_TIMEOUT)
 
-        # TextMeBot geeft 200 terug bij succes
         if response.status_code == 200:
             response_text = response.text.strip()
             logger.debug(f"TextMeBot response voor {phone}: {response_text}")
 
-            # TextMeBot geeft soms een foutmelding in de body ondanks 200
             if any(err in response_text.lower() for err in ["error", "invalid", "failed", "not found"]):
                 return False, f"TextMeBot fout: {response_text}"
 
             if not skip_delay:
-                time.sleep(DELAY_BETWEEN_MESSAGES)
+                time.sleep(effective_delay)
 
             return True, response_text
-        else:
-            detail = f"HTTP {response.status_code}: {response.text.strip()[:200]}"
-            logger.warning(f"TextMeBot fout voor {phone}: {detail}")
-            if not skip_delay:
-                time.sleep(DELAY_BETWEEN_MESSAGES)
-            return False, detail
+
+        detail = f"HTTP {response.status_code}: {response.text.strip()[:200]}"
+        logger.warning(f"TextMeBot fout voor {phone}: {detail}")
+        if not skip_delay:
+            time.sleep(effective_delay)
+        return False, detail
 
     except requests.exceptions.Timeout:
         logger.warning(f"TextMeBot timeout voor {phone}")
@@ -79,14 +84,15 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
 def send_system_message(message: str) -> bool:
     """
     Stuur een systeembericht naar het eigen samenvattingsnummer.
-    Geen delay, want dit zijn interne berichten.
+    Respecteert dezelfde throttling als klantberichten om rate limits te voorkomen.
     """
     from config import SUMMARY_PHONE
+
     if not SUMMARY_PHONE:
         logger.error("SUMMARY_PHONE niet geconfigureerd, kan systeembericht niet sturen")
         return False
 
-    success, detail = send_whatsapp(SUMMARY_PHONE, message, skip_delay=True)
+    success, detail = send_whatsapp(SUMMARY_PHONE, message, skip_delay=False)
     if not success:
         logger.error(f"Systeembericht versturen mislukt: {detail}")
     return success
