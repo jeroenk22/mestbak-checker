@@ -10,7 +10,7 @@ from datetime import datetime, date
 from config import (
     validate_config, SEND_HOUR, MAX_CUTOFF_HOUR, MAX_CUTOFF_MINUTE,
     DATA_DIR, LOGS_DIR, TEST_MODE,
-    TEST_PHONE_NL, TEST_PHONE_BE, TEST_PHONE_DE
+    TEST_PHONE_NL, TEST_PHONE_BE, TEST_PHONE_DE, get_runtime_config_diagnostics
 )
 from logger import logger, cleanup_old_logs
 from holidays import HolidayChecker
@@ -95,6 +95,49 @@ def warn_if_duplicate_test_numbers():
             )
 
 
+def _get_allowed_test_numbers() -> set[str]:
+    """Genormaliseerde allowlist van testnummers voor fail-closed testmodus."""
+    allowed = set()
+    for raw in (TEST_PHONE_NL, TEST_PHONE_BE, TEST_PHONE_DE):
+        normalized = normalize_phone(raw)
+        if normalized:
+            allowed.add(normalized)
+    return allowed
+
+
+def assert_safe_test_customers(customers: list[dict]):
+    """
+    Verifieer dat testmodus alleen expliciet gemarkeerde testrecords met
+    toegestane testnummers verwerkt.
+    """
+    allowed_numbers = _get_allowed_test_numbers()
+
+    if not allowed_numbers:
+        abort("Testmodus onveilig: geen geldige TEST_PHONE_* nummers geconfigureerd")
+
+    for customer in customers:
+        if not customer.get("is_test_customer"):
+            abort(
+                "Testmodus onveilig: klantenlijst bevat niet-gemarkeerde records. "
+                "Databaseklanten mogen nooit in testmodus worden verwerkt."
+            )
+
+        numbers_to_try = resolve_number(
+            customer.get("mobile", ""),
+            customer.get("phone", "")
+        )
+        disallowed_numbers = [
+            normalized for _, _, normalized in numbers_to_try
+            if normalized not in allowed_numbers
+        ]
+
+        if disallowed_numbers:
+            abort(
+                f"Testmodus onveilig: klant '{customer.get('name', 'Onbekend')}' "
+                f"bevat niet-toegestaan nummer: {', '.join(disallowed_numbers)}"
+            )
+
+
 def run():
     start_time = time.time()
     now = datetime.now()
@@ -104,6 +147,14 @@ def run():
     logger.info("=" * 60)
     logger.info(f"Mestbak-checker gestart — {run_date}")
     logger.info(f"Testmodus: {'AAN' if TEST_MODE else 'UIT'}")
+    diagnostics = get_runtime_config_diagnostics()
+    logger.info(
+        "Config bron: .env=%s | TEST_MODE raw=%s | bron=%s | .env TEST_MODE=%s",
+        diagnostics["dotenv_path"],
+        diagnostics["test_mode_raw"],
+        diagnostics["test_mode_source"],
+        diagnostics["dotenv_test_mode_raw"],
+    )
     if TEST_MODE:
         warn_if_duplicate_test_numbers()
 
@@ -154,6 +205,7 @@ def run():
     if TEST_MODE:
         logger.info("TESTMODUS: Gebruik testklanten i.p.v. database")
         customers = _get_test_customers()
+        assert_safe_test_customers(customers)
     else:
         from datetime import timedelta
         tomorrow = today + timedelta(days=1)
@@ -361,6 +413,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "",
             "mobile": TEST_PHONE_NL,
             "moment_rta": None,
+            "is_test_customer": True,
         },
         {
             "order_id": 99002,
@@ -373,6 +426,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "",
             "mobile": TEST_PHONE_BE,
             "moment_rta": None,
+            "is_test_customer": True,
         },
         {
             "order_id": 99003,
@@ -385,6 +439,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "",
             "mobile": TEST_PHONE_DE,
             "moment_rta": None,
+            "is_test_customer": True,
         },
         # Test deduplicatie: zelfde nummer als TEST-NL-001
         {
@@ -398,6 +453,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "",
             "mobile": TEST_PHONE_NL,
             "moment_rta": None,
+            "is_test_customer": True,
         },
         # Test nul-notatie
         {
@@ -411,6 +467,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "",
             "mobile": "nul-zes 43091465",
             "moment_rta": None,
+            "is_test_customer": True,
         },
         # Test alleen spoed
         {
@@ -424,6 +481,7 @@ def _get_test_customers() -> list[dict]:
             "phone": "0031653301960 (alleen spoed)",
             "mobile": "",
             "moment_rta": None,
+            "is_test_customer": True,
         },
     ]
 

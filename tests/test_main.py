@@ -5,10 +5,11 @@ Dekt resolve_number() en de deduplicatie/fallback-lus in run().
 
 import sys
 import os
+from contextlib import ExitStack
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from unittest.mock import patch, MagicMock
-from main import resolve_number, warn_if_duplicate_test_numbers
+from main import resolve_number, warn_if_duplicate_test_numbers, assert_safe_test_customers
 
 
 # ─── resolve_number ───────────────────────────────────────────────────────────
@@ -247,28 +248,41 @@ def test_cutoff_skipped_in_test_mode():
     """In testmodus wordt de cutoff check overgeslagen, ook als cutoff al gepasseerd is."""
     from datetime import date, timedelta
     test_customers = [
-        _make_customer("Test Klant", "0612345678", ""),
+        {
+            **_make_customer("Test Klant", "0612345678", ""),
+            "is_test_customer": True,
+        },
     ]
 
-    with patch("main.validate_config", return_value=[]), \
-         patch("main.HolidayChecker") as MockChecker, \
-         patch("main.get_customers_for_date") as mock_get_customers_for_date, \
-         patch("main._get_test_customers", return_value=test_customers) as mock_get_test_customers, \
-         patch("main.load_excluded", return_value=set()), \
-         patch("main.is_excluded", return_value=False), \
-         patch("main.register_failure", return_value=False), \
-         patch("main.register_success"), \
-         patch("main.get_failure_count", return_value=0), \
-         patch("main.send_whatsapp", return_value=(True, "ok")), \
-         patch("main.send_success_summary"), \
-         patch("main.send_failure_summary"), \
-         patch("main.send_completion_message"), \
-         patch("main.send_system_message"), \
-         patch("main.cleanup_old_logs"), \
-         patch("main.TEST_MODE", True), \
-         patch("main.MAX_CUTOFF_HOUR", 0), \
-         patch("main.MAX_CUTOFF_MINUTE", 1), \
-         patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        mock_get_customers_for_date = stack.enter_context(
+            patch("main.get_customers_for_date")
+        )
+        mock_get_test_customers = stack.enter_context(
+            patch("main._get_test_customers", return_value=test_customers)
+        )
+        stack.enter_context(patch("main.TEST_PHONE_NL", "+31612345678"))
+        stack.enter_context(patch("main.TEST_PHONE_BE", "+32498123456"))
+        stack.enter_context(patch("main.TEST_PHONE_DE", "+4917612345678"))
+        stack.enter_context(patch("main.load_excluded", return_value=set()))
+        stack.enter_context(patch("main.is_excluded", return_value=False))
+        stack.enter_context(patch("main.register_failure", return_value=False))
+        stack.enter_context(patch("main.register_success"))
+        stack.enter_context(patch("main.get_failure_count", return_value=0))
+        stack.enter_context(patch("main.send_whatsapp", return_value=(True, "ok")))
+        stack.enter_context(patch("main.send_success_summary"))
+        stack.enter_context(patch("main.send_failure_summary"))
+        stack.enter_context(patch("main.send_completion_message"))
+        stack.enter_context(patch("main.send_system_message"))
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", True))
+        stack.enter_context(patch("main.MAX_CUTOFF_HOUR", 0))
+        stack.enter_context(patch("main.MAX_CUTOFF_MINUTE", 1))
+        stack.enter_context(
+            patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r)))
+        )
 
         checker = MockChecker.return_value
         checker.is_nl_holiday.return_value = (False, "")
@@ -311,6 +325,115 @@ def test_cutoff_enforced_outside_test_mode():
             assert "te laat" in str(e).lower(), f"Onverwachte abort reden: {e}"
 
     print("✅ test_cutoff_enforced_outside_test_mode geslaagd")
+
+
+def test_run_logs_config_diagnostics():
+    """Startup logt uit welke bron TEST_MODE is afgeleid."""
+    test_customers = [
+        {
+            **_make_customer("Test Klant", "0612345678", ""),
+            "is_test_customer": True,
+        },
+    ]
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        stack.enter_context(
+            patch("main._get_test_customers", return_value=test_customers)
+        )
+        stack.enter_context(patch("main.TEST_PHONE_NL", "+31612345678"))
+        stack.enter_context(patch("main.TEST_PHONE_BE", "+32498123456"))
+        stack.enter_context(patch("main.TEST_PHONE_DE", "+4917612345678"))
+        stack.enter_context(patch("main.load_excluded", return_value=set()))
+        stack.enter_context(patch("main.is_excluded", return_value=False))
+        stack.enter_context(patch("main.register_failure", return_value=False))
+        stack.enter_context(patch("main.register_success"))
+        stack.enter_context(patch("main.get_failure_count", return_value=0))
+        stack.enter_context(patch("main.send_whatsapp", return_value=(True, "ok")))
+        stack.enter_context(patch("main.send_success_summary"))
+        stack.enter_context(patch("main.send_failure_summary"))
+        stack.enter_context(patch("main.send_completion_message"))
+        stack.enter_context(patch("main.send_system_message"))
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", True))
+        mock_diagnostics = stack.enter_context(
+            patch(
+                "main.get_runtime_config_diagnostics",
+                return_value={
+                    "dotenv_path": "C:\\repo\\.env",
+                    "test_mode_source": "process-env",
+                    "test_mode_raw": "true",
+                    "dotenv_test_mode_raw": "false",
+                },
+            )
+        )
+        mock_logger_info = stack.enter_context(patch("main.logger.info"))
+
+        checker = MockChecker.return_value
+        checker.is_nl_holiday.return_value = (False, "")
+        checker.is_be_holiday.return_value = (False, "")
+        checker.is_de_holiday.return_value = (False, "")
+        from datetime import date, timedelta
+        tomorrow = date.today() + timedelta(days=1)
+        checker.get_holiday_scenario.return_value = {
+            "scenario": "normal",
+            "next_workday": tomorrow,
+            "nl_holiday_name": "",
+            "tomorrow_is_weekend": False,
+        }
+
+        import main as m
+        m.run()
+
+        mock_diagnostics.assert_called_once()
+        mock_logger_info.assert_any_call(
+            "Config bron: .env=%s | TEST_MODE raw=%s | bron=%s | .env TEST_MODE=%s",
+            "C:\\repo\\.env",
+            "true",
+            "process-env",
+            "false",
+        )
+
+    print("✅ test_run_logs_config_diagnostics geslaagd")
+
+
+def test_test_mode_rejects_unmarked_customer_records():
+    """Testmodus moet afbreken als een record niet expliciet als testrecord gemarkeerd is."""
+    customers = [
+        _make_customer("Echte klant uit DB", "0612345678", ""),
+    ]
+
+    with patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+        try:
+            assert_safe_test_customers(customers)
+            assert False, "Verwacht abort voor ongemarkeerd record in testmodus"
+        except _AbortCalled as e:
+            assert "niet-gemarkeerde records" in str(e)
+
+    print("✅ test_test_mode_rejects_unmarked_customer_records geslaagd")
+
+
+def test_test_mode_rejects_numbers_outside_test_allowlist():
+    """Testmodus moet afbreken als een testrecord een ander nummer dan TEST_PHONE_* gebruikt."""
+    customers = [
+        {
+            **_make_customer("Onveilig testrecord", "0612345678", ""),
+            "is_test_customer": True,
+        },
+    ]
+
+    with patch("main.TEST_PHONE_NL", "+31699999999"), \
+         patch("main.TEST_PHONE_BE", "+32498123456"), \
+         patch("main.TEST_PHONE_DE", "+4917612345678"), \
+         patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+        try:
+            assert_safe_test_customers(customers)
+            assert False, "Verwacht abort voor nummer buiten test allowlist"
+        except _AbortCalled as e:
+            assert "niet-toegestaan nummer" in str(e)
+
+    print("✅ test_test_mode_rejects_numbers_outside_test_allowlist geslaagd")
 
 
 # ─── Runner ──────────────────────────────────────────────────────────────────
@@ -361,6 +484,9 @@ def run_all_tests():
         test_mobile_failure_fallback_to_phone,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
+        test_run_logs_config_diagnostics,
+        test_test_mode_rejects_unmarked_customer_records,
+        test_test_mode_rejects_numbers_outside_test_allowlist,
         test_warn_if_duplicate_test_numbers_logs_warning,
         test_warn_if_duplicate_test_numbers_unique_is_silent,
     ]
