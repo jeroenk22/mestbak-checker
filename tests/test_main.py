@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from unittest.mock import patch, MagicMock
-from main import resolve_number
+from main import resolve_number, warn_if_duplicate_test_numbers
 
 
 # ─── resolve_number ───────────────────────────────────────────────────────────
@@ -315,6 +315,33 @@ def test_cutoff_enforced_outside_test_mode():
 
 # ─── Runner ──────────────────────────────────────────────────────────────────
 
+def test_warn_if_duplicate_test_numbers_logs_warning():
+    """Dubbele genormaliseerde testnummers geven een waarschuwing."""
+    with patch("main.TEST_PHONE_NL", "+31612345678"), \
+         patch("main.TEST_PHONE_BE", "0612345678"), \
+         patch("main.TEST_PHONE_DE", "+4917612345678"), \
+         patch("main.logger.warning") as mock_warning:
+        warn_if_duplicate_test_numbers()
+
+    mock_warning.assert_called_once()
+    warning_text = mock_warning.call_args[0][0]
+    assert "TEST_PHONE_NL" in warning_text
+    assert "TEST_PHONE_BE" in warning_text
+    print("âœ… test_warn_if_duplicate_test_numbers_logs_warning geslaagd")
+
+
+def test_warn_if_duplicate_test_numbers_unique_is_silent():
+    """Unieke testnummers geven geen waarschuwing."""
+    with patch("main.TEST_PHONE_NL", "+31612345678"), \
+         patch("main.TEST_PHONE_BE", "+32498123456"), \
+         patch("main.TEST_PHONE_DE", "+4917612345678"), \
+         patch("main.logger.warning") as mock_warning:
+        warn_if_duplicate_test_numbers()
+
+    mock_warning.assert_not_called()
+    print("âœ… test_warn_if_duplicate_test_numbers_unique_is_silent geslaagd")
+
+
 def run_all_tests():
     print("\n" + "=" * 60)
     print("TESTS: main.py (dispatch-logica)")
@@ -334,6 +361,8 @@ def run_all_tests():
         test_mobile_failure_fallback_to_phone,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
+        test_warn_if_duplicate_test_numbers_logs_warning,
+        test_warn_if_duplicate_test_numbers_unique_is_silent,
     ]
     passed = 0
     failed = 0
