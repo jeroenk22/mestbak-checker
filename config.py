@@ -29,7 +29,7 @@ MIDDAG_START = 12
 AVOND_START = 18
 
 # ─── Vertraging tussen berichten (spam preventie) ────────────────────────────
-DELAY_BETWEEN_MESSAGES = 8  # seconden tussen elk WhatsApp bericht
+DELAY_BETWEEN_MESSAGES = 5  # seconden tussen elk WhatsApp bericht
 
 # ─── TextMeBot instellingen ──────────────────────────────────────────────────
 TEXTMEBOT_API_KEY = os.getenv("TEXTMEBOT_API_KEY", "")
