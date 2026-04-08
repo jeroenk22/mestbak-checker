@@ -16,7 +16,8 @@ from config import (
 )
 from logger import logger
 
-_TEXTMEBOT_MIN_INTERVAL_SECONDS = 5
+_TEXTMEBOT_MIN_INTERVAL_SECONDS = 8
+_last_send_time: float = 0.0
 
 
 def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[bool, str]:
@@ -31,6 +32,8 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
     Returns:
         (succes: bool, detail: str)
     """
+    global _last_send_time
+
     if not TEXTMEBOT_API_KEY:
         return False, "TEXTMEBOT_API_KEY niet geconfigureerd"
 
@@ -38,6 +41,12 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
         return False, "Leeg telefoonnummer"
 
     effective_delay = max(DELAY_BETWEEN_MESSAGES, _TEXTMEBOT_MIN_INTERVAL_SECONDS)
+
+    if not skip_delay and _last_send_time > 0:
+        elapsed = time.monotonic() - _last_send_time
+        wait = effective_delay - elapsed
+        if wait > 0:
+            time.sleep(wait)
 
     encoded_message = quote(message, encoding="utf-8")
     encoded_phone = quote(phone, encoding="utf-8")
@@ -51,6 +60,7 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
 
     try:
         response = requests.get(url, timeout=TEXTMEBOT_TIMEOUT)
+        _last_send_time = time.monotonic()
 
         if response.status_code == 200:
             response_text = response.text.strip()
@@ -59,19 +69,15 @@ def send_whatsapp(phone: str, message: str, skip_delay: bool = False) -> tuple[b
             if any(err in response_text.lower() for err in ["error", "invalid", "failed", "not found"]):
                 return False, f"TextMeBot fout: {response_text}"
 
-            if not skip_delay:
-                time.sleep(effective_delay)
-
             return True, response_text
 
         detail = f"HTTP {response.status_code}: {response.text.strip()[:200]}"
         logger.warning(f"TextMeBot fout voor {phone}: {detail}")
-        if not skip_delay:
-            time.sleep(effective_delay)
         return False, detail
 
     except requests.exceptions.Timeout:
         logger.warning(f"TextMeBot timeout voor {phone}")
+        _last_send_time = time.monotonic()
         return False, "Timeout"
     except requests.exceptions.ConnectionError as e:
         logger.warning(f"TextMeBot verbindingsfout voor {phone}: {e}")
