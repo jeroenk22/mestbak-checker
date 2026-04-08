@@ -404,7 +404,10 @@ def test_test_mode_rejects_unmarked_customer_records():
         _make_customer("Echte klant uit DB", "0612345678", ""),
     ]
 
-    with patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+    with patch("main.TEST_PHONE_NL", "+31612345678"), \
+         patch("main.TEST_PHONE_BE", "+32498123456"), \
+         patch("main.TEST_PHONE_DE", "+4917612345678"), \
+         patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
         try:
             assert_safe_test_customers(customers)
             assert False, "Verwacht abort voor ongemarkeerd record in testmodus"
