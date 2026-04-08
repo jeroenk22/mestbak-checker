@@ -29,7 +29,7 @@ def get_public_holidays(country_code: str, year: int) -> list[dict]:
 def _is_holiday_for_date(target_date: date, holidays: list[dict],
                           regions: list[str] | None = None) -> tuple[bool, str]:
     """Controleer of een datum een feestdag is.
-    Als regions opgegeven is (bijv. ['NW', 'NI'] voor DE), check dan ook op counties.
+    Als regions opgegeven is (bijv. ['DE-NW', 'DE-NI'] voor DE), check dan ook op counties.
     Geeft (is_holiday, holiday_name) terug.
     """
     target_str = target_date.strftime("%Y-%m-%d")
