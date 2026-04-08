@@ -2,8 +2,8 @@
 -- Haalt klanten op die gepland staan voor een opgegeven datum.
 -- Alleen vaste herhalende klanten (SjOrderId IS NOT NULL).
 --
--- Gebruik: pas @Datum aan naar de gewenste datum (formaat: YYYY-MM-DD)
--- In het Python script wordt @Datum automatisch ingevuld als morgen.
+-- Gebruik: pas de testdatum hieronder aan (formaat: YYYY-MM-DD)
+-- In het Python script wordt de datum automatisch ingevuld als morgen.
 
 DECLARE @Datum DATE;
 SET @Datum = '2026-04-07'; -- Aanpassen voor handmatig testen
