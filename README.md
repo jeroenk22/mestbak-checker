@@ -1,19 +1,16 @@
-mestbak-checker
-===============
+# mestbak-checker
 
-WAT DOET DIT SCRIPT?
---------------------
-Stuurt elke werkdag om 13:00 een WhatsApp bericht naar klanten
-via de TextMeBot API. Het vraagt hoeveel mestbakken zij de
-volgende dag klaar hebben staan.
+Stuurt elke werkdag om 13:00 een WhatsApp bericht naar klanten via de TextMeBot API.
+Het vraagt hoeveel mestbakken zij de volgende dag klaar hebben staan.
 
 - Haalt klantgegevens op uit SQL Server (alleen lezen)
 - Houdt rekening met feestdagen in NL, België en Duitsland
 - Stuurt berichten in de juiste taal (NL of Duits)
 - Logt alles en stuurt een samenvatting naar de beheerder
 
-MAPSTRUCTUUR
-------------
+## Mapstructuur
+
+```
 mestbak-checker/
 ├── main.py               Hoofdscript (dit wordt uitgevoerd)
 ├── config.py             Alle instellingen en variabelen
@@ -41,49 +38,54 @@ mestbak-checker/
 │   └── failure_counts.json     Failure tellers per nummer
 └── logs/
     └── mestbak-checker-YYYY-MM-DD.log
+```
 
-INSTALLATIE
------------
+## Installatie
+
 1. Installeer Python via python.org (minimaal 3.11)
 2. Open Command Prompt in de mestbak-checker map:
 
-   cd C:\Scripts\mestbak-checker
-   python -m venv venv
-   venv\Scripts\activate
-   pip install -r requirements.txt
+```bat
+cd C:\Scripts\mestbak-checker
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-3. Kopieer .env.example naar .env en vul de waarden in
-4. Test: python run_tests.py
-5. Live test: python tests\test_messaging.py
+3. Kopieer `.env.example` naar `.env` en vul de waarden in
+4. Test: `python run_tests.py`
+5. Live test: `python tests\test_messaging.py`
 
-TASK SCHEDULER
---------------
-Programma:  C:\Scripts\mestbak-checker\venv\Scripts\python.exe
-Argumenten: C:\Scripts\mestbak-checker\main.py
-Start in:   C:\Scripts\mestbak-checker\
-Trigger:    Dagelijks 13:00, maandag t/m vrijdag
-Opties:     "Run as soon as possible after missed start" = AAN
-            "Run whether user is logged on or not" = AAN
+## Task Scheduler
 
-NETWERK
--------
+| Instelling | Waarde |
+|---|---|
+| Programma | `C:\Scripts\mestbak-checker\venv\Scripts\python.exe` |
+| Argumenten | `C:\Scripts\mestbak-checker\main.py` |
+| Start in | `C:\Scripts\mestbak-checker\` |
+| Trigger | Dagelijks 13:00, maandag t/m vrijdag |
+
+Opties: **Run as soon as possible after missed start** = AAN, **Run whether user is logged on or not** = AAN
+
+## Netwerk
+
 Alleen uitgaande verbindingen naar:
-  - api.textmebot.com  (WhatsApp berichten)
-  - date.nager.at      (feestdagenkalender)
-DB rechten: Alleen leesrechten op <db-naam>
+- `api.textmebot.com` — WhatsApp berichten
+- `date.nager.at` — feestdagenkalender
 
-LOGBESTANDEN
-------------
-Locatie: logs\
-Formaat:  mestbak-checker-YYYY-MM-DD.log
-Bewaard:  90 dagen, daarna automatisch verwijderd
+DB rechten: alleen leesrechten op <db-naam>
 
-UITGESLOTEN NUMMERS
--------------------
-Locatie: data\excluded_numbers.json
-Nummers worden automatisch uitgesloten na 3 mislukte pogingen.
-Handmatig te bewerken met Kladblok.
+## Logbestanden
 
-CONTACT
--------
-Voor vragen: [vul contactpersoon in]
+- Locatie: `logs\`
+- Formaat: `mestbak-checker-YYYY-MM-DD.log`
+- Bewaard: 90 dagen, daarna automatisch verwijderd
+
+## Uitgesloten nummers
+
+Locatie: `data\excluded_numbers.json`
+Nummers worden automatisch uitgesloten na 3 mislukte pogingen. Handmatig te bewerken met Kladblok.
+
+## Contact
+
+Voor vragen: [contactpersoon]
