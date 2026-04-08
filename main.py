@@ -84,7 +84,7 @@ def run():
 
     # ── Stap 1: Cutoff check ─────────────────────────────────────────────────
     cutoff = now.replace(hour=MAX_CUTOFF_HOUR, minute=MAX_CUTOFF_MINUTE, second=0)
-    if now > cutoff:
+    if now > cutoff and not TEST_MODE:
         abort(
             f"Te laat gestart ({now.strftime('%H:%M')}), "
             f"cutoff is {MAX_CUTOFF_HOUR}:{MAX_CUTOFF_MINUTE:02d}"
