@@ -86,7 +86,3 @@ DB rechten: alleen leesrechten op de geconfigureerde SQL Server
 
 Locatie: `data\excluded_numbers.json`
 Nummers worden automatisch uitgesloten na 3 mislukte pogingen. Handmatig te bewerken met Kladblok.
-
-## Contact
-
-Voor vragen: [vul contactpersoon in]
