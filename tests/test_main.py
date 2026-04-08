@@ -246,11 +246,20 @@ class _AbortCalled(Exception):
 def test_cutoff_skipped_in_test_mode():
     """In testmodus wordt de cutoff check overgeslagen, ook als cutoff al gepasseerd is."""
     from datetime import date, timedelta
+    test_customers = [
+        _make_customer("Test Klant", "0612345678", ""),
+    ]
 
     with patch("main.validate_config", return_value=[]), \
          patch("main.HolidayChecker") as MockChecker, \
-         patch("main.get_customers_for_date", return_value=[]), \
+         patch("main.get_customers_for_date") as mock_get_customers_for_date, \
+         patch("main._get_test_customers", return_value=test_customers) as mock_get_test_customers, \
          patch("main.load_excluded", return_value=set()), \
+         patch("main.is_excluded", return_value=False), \
+         patch("main.register_failure", return_value=False), \
+         patch("main.register_success"), \
+         patch("main.get_failure_count", return_value=0), \
+         patch("main.send_whatsapp", return_value=(True, "ok")), \
          patch("main.send_success_summary"), \
          patch("main.send_failure_summary"), \
          patch("main.send_completion_message"), \
@@ -279,6 +288,9 @@ def test_cutoff_skipped_in_test_mode():
             m.run()
         except _AbortCalled as e:
             assert False, f"Cutoff abort onverwacht getriggerd: {e}"
+
+        mock_get_test_customers.assert_called_once()
+        mock_get_customers_for_date.assert_not_called()
 
     print("✅ test_cutoff_skipped_in_test_mode geslaagd")
 
