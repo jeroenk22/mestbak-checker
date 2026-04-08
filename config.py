@@ -4,9 +4,17 @@ Alle instelbare variabelen staan hier. Pas dit aan naar wens.
 """
 
 import os
-from dotenv import load_dotenv
+from dotenv import dotenv_values, find_dotenv, load_dotenv
 
-load_dotenv()
+DOTENV_PATH = find_dotenv(usecwd=True)
+DOTENV_VALUES = dotenv_values(DOTENV_PATH) if DOTENV_PATH else {}
+TEST_MODE_RAW = os.getenv("TEST_MODE")
+TEST_MODE_SOURCE = "process-env" if TEST_MODE_RAW is not None else ".env/default"
+
+load_dotenv(DOTENV_PATH or None)
+
+if TEST_MODE_RAW is None:
+    TEST_MODE_RAW = os.getenv("TEST_MODE", str(DOTENV_VALUES.get("TEST_MODE", "false")))
 
 # ─── Tijdinstellingen ────────────────────────────────────────────────────────
 SEND_HOUR = 13          # Uur waarop het script normaal draait (bepaalt dagdeel)
@@ -69,6 +77,20 @@ HOLIDAY_COUNTRIES = {
 }
 
 DE_REGIONS = ["DE-NW", "DE-NI"]  # NRW en Niedersachsen county codes bij Nager
+
+
+def get_runtime_config_diagnostics() -> dict[str, str]:
+    """Herleid waar runtime-config vandaan komt voor logdiagnostiek."""
+    dotenv_display = DOTENV_PATH if DOTENV_PATH else "(geen .env gevonden)"
+    dotenv_test_mode = DOTENV_VALUES.get("TEST_MODE")
+    return {
+        "dotenv_path": str(dotenv_display),
+        "test_mode_source": TEST_MODE_SOURCE,
+        "test_mode_raw": str(TEST_MODE_RAW),
+        "dotenv_test_mode_raw": (
+            str(dotenv_test_mode) if dotenv_test_mode is not None else "(afwezig)"
+        ),
+    }
 
 
 def validate_config() -> list:

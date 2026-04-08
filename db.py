@@ -8,7 +8,7 @@ import os
 from datetime import date, timedelta
 import pyodbc
 from logger import logger
-from config import DB_SERVER, DB_NAME, DB_CLIENT_NO, DB_DRIVER, BASE_DIR
+from config import DB_SERVER, DB_NAME, DB_CLIENT_NO, DB_DRIVER, BASE_DIR, TEST_MODE
 from utils import clean_field
 
 SQL_FILE = os.path.join(BASE_DIR, "sql", "query.sql")
@@ -16,6 +16,11 @@ SQL_FILE = os.path.join(BASE_DIR, "sql", "query.sql")
 
 def get_connection():
     """Maak verbinding met SQL Server via Windows Authentication."""
+    if TEST_MODE:
+        raise ConnectionError(
+            "Database verbinding geblokkeerd: testmodus mag geen database aanspreken"
+        )
+
     conn_str = (
         f"DRIVER={{{DB_DRIVER}}};"
         f"SERVER={DB_SERVER};"
