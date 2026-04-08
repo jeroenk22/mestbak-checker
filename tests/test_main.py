@@ -124,7 +124,9 @@ def _run_with_customers(customers, send_results):
          patch("main.send_completion_message"), \
          patch("main.send_system_message"), \
          patch("main.cleanup_old_logs"), \
-         patch("main.TEST_MODE", False):
+         patch("main.TEST_MODE", False), \
+         patch("main.MAX_CUTOFF_HOUR", 23), \
+         patch("main.MAX_CUTOFF_MINUTE", 59):
 
         checker = MockChecker.return_value
         checker.is_nl_holiday.return_value = (False, "")
@@ -235,6 +237,70 @@ def test_mobile_failure_fallback_to_phone():
     print("✅ test_mobile_failure_fallback_to_phone geslaagd")
 
 
+# ─── Cutoff check ────────────────────────────────────────────────────────────
+
+class _AbortCalled(Exception):
+    pass
+
+
+def test_cutoff_skipped_in_test_mode():
+    """In testmodus wordt de cutoff check overgeslagen, ook als cutoff al gepasseerd is."""
+    from datetime import date, timedelta
+
+    with patch("main.validate_config", return_value=[]), \
+         patch("main.HolidayChecker") as MockChecker, \
+         patch("main.get_customers_for_date", return_value=[]), \
+         patch("main.load_excluded", return_value=set()), \
+         patch("main.send_success_summary"), \
+         patch("main.send_failure_summary"), \
+         patch("main.send_completion_message"), \
+         patch("main.send_system_message"), \
+         patch("main.cleanup_old_logs"), \
+         patch("main.TEST_MODE", True), \
+         patch("main.MAX_CUTOFF_HOUR", 0), \
+         patch("main.MAX_CUTOFF_MINUTE", 1), \
+         patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+
+        checker = MockChecker.return_value
+        checker.is_nl_holiday.return_value = (False, "")
+        checker.is_be_holiday.return_value = (False, "")
+        checker.is_de_holiday.return_value = (False, "")
+
+        tomorrow = date.today() + timedelta(days=1)
+        checker.get_holiday_scenario.return_value = {
+            "scenario": "normal",
+            "next_workday": tomorrow,
+            "nl_holiday_name": "",
+            "tomorrow_is_weekend": False,
+        }
+
+        try:
+            import main as m
+            m.run()
+        except _AbortCalled as e:
+            assert False, f"Cutoff abort onverwacht getriggerd: {e}"
+
+    print("✅ test_cutoff_skipped_in_test_mode geslaagd")
+
+
+def test_cutoff_enforced_outside_test_mode():
+    """Buiten testmodus wordt de cutoff wél gehandhaafd als die gepasseerd is."""
+    with patch("main.TEST_MODE", False), \
+         patch("main.MAX_CUTOFF_HOUR", 0), \
+         patch("main.MAX_CUTOFF_MINUTE", 1), \
+         patch("main.validate_config", return_value=[]), \
+         patch("main.cleanup_old_logs"), \
+         patch("main.abort", side_effect=lambda r: (_ for _ in ()).throw(_AbortCalled(r))):
+        try:
+            import main as m
+            m.run()
+            assert False, "Verwacht een cutoff abort, maar run() liep gewoon door"
+        except _AbortCalled as e:
+            assert "te laat" in str(e).lower(), f"Onverwachte abort reden: {e}"
+
+    print("✅ test_cutoff_enforced_outside_test_mode geslaagd")
+
+
 # ─── Runner ──────────────────────────────────────────────────────────────────
 
 def run_all_tests():
@@ -254,6 +320,8 @@ def run_all_tests():
         test_dedup_mobile_falls_back_to_phone,
         test_dedup_duplicate_record_no_double_send,
         test_mobile_failure_fallback_to_phone,
+        test_cutoff_skipped_in_test_mode,
+        test_cutoff_enforced_outside_test_mode,
     ]
     passed = 0
     failed = 0
