@@ -1,0 +1,30 @@
+# Omgevingsvariabelen — NOOIT committen!
+.env
+
+# Logbestanden
+logs/
+
+# Data (exclude lijst en failure counts bevatten klantgegevens)
+data/
+
+# API documentatie (lokale referentie, niet nodig in remote)
+api-docs/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
