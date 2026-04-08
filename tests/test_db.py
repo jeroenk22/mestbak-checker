@@ -3,9 +3,9 @@ tests/test_db.py - Tests voor de SQL query laadlogica in db.py
 Geen echte database verbinding nodig.
 """
 
-import unittest
 import os
 import sys
+import unittest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -46,8 +46,8 @@ class TestLoadQuery(unittest.TestCase):
         self.assertNotIn("@ClientNo", self.query)
 
     def test_no_hardcoded_database_name(self):
-        """Geen hardcoded databasenaam in de query — verbinding regelt dit al."""
-        self.assertNotIn("<db-naam>", self.query)
+        """Geen hardcoded databasenaam in de query - verbinding regelt dit al."""
+        self.assertNotIn("HARDCODED_DB_NAME", self.query)
 
     def test_no_hardcoded_client_number(self):
         """Geen hardcoded clientnummer 3582 in de query."""
