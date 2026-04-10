@@ -24,7 +24,7 @@ from exclude import (
 )
 from summary import (
     send_success_summary, send_failure_summary,
-    send_abort_message, send_completion_message
+    send_skipped_summary, send_abort_message, send_completion_message
 )
 import os
 
@@ -51,7 +51,23 @@ def resolve_number(mobile_raw: str, phone_raw: str) -> list[tuple[str, str, str]
     Geeft een lijst van (num_type, raw, normalized) tuples terug in volgorde van voorkeur.
     Lege normalized string = ongeldig/uitgesloten.
     """
+    numbers, _ = resolve_number_with_ignored(mobile_raw, phone_raw)
+    return numbers
+
+
+def resolve_number_with_ignored(
+    mobile_raw: str,
+    phone_raw: str
+) -> tuple[list[tuple[str, str, str]], list[dict]]:
+    """
+    Bepaal welke nummers gebruikt worden en welke bewust genegeerd zijn.
+
+    Geeft (numbers, ignored) terug:
+    - numbers: lijst van (num_type, raw, normalized) tuples in voorkeursvolgorde.
+    - ignored: lijst van dicts voor notaties zoals "(alleen spoed)" of "nul-zes".
+    """
     numbers = []
+    ignored = []
 
     for num_type, raw in [("mobile", mobile_raw), ("phone", phone_raw)]:
         if not raw:
@@ -61,6 +77,11 @@ def resolve_number(mobile_raw: str, phone_raw: str) -> list[tuple[str, str, str]
         excl, reden = is_excluded_notation(raw)
         if excl:
             logger.info(f"Nummer overgeslagen ({reden}): '{raw}'")
+            ignored.append({
+                "num_type": num_type,
+                "raw": raw,
+                "reason": reden,
+            })
             continue
 
         normalized = normalize_phone(raw)
@@ -69,7 +90,32 @@ def resolve_number(mobile_raw: str, phone_raw: str) -> list[tuple[str, str, str]
         else:
             logger.warning(f"Ongeldig nummer ({num_type}): '{raw}'")
 
-    return numbers
+    return numbers, ignored
+
+
+def _format_ignored_number_notes(ignored_numbers: list[dict]) -> list[str]:
+    """Maak korte summary-regels voor bewust genegeerde nummernotaties."""
+    notes = []
+    labels = {
+        "mobile": "Mobiel",
+        "phone": "LocPhone",
+    }
+    for item in ignored_numbers:
+        label = labels.get(item.get("num_type"), item.get("num_type", "Nummer"))
+        reason = item.get("reason", "bewust genegeerd")
+        raw = item.get("raw", "")
+        notes.append(f"{label} genegeerd ({reason}): {raw}")
+    return notes
+
+
+def _send_summary_safely(summary_name: str, send_func, *args, **kwargs) -> bool:
+    """Voorkom dat een falende samenvatting de rest van de afsluiting blokkeert."""
+    try:
+        send_func(*args, **kwargs)
+        return True
+    except Exception as e:
+        logger.error(f"{summary_name} samenvatting mislukt: {e}")
+        return False
 
 
 def warn_if_duplicate_test_numbers():
@@ -226,6 +272,7 @@ def run():
     failures = []
     skipped = []
     excluded_count = 0
+    ignored_number_count = 0
     seen_phones = set()  # Deduplicatie op telefoonnummer
 
     for customer in customers:
@@ -240,10 +287,12 @@ def run():
         }
 
         # Bepaal geldige nummers (mobile eerst, dan phone)
-        numbers_to_try = resolve_number(
+        numbers_to_try, ignored_numbers = resolve_number_with_ignored(
             customer.get("mobile", ""),
             customer.get("phone", "")
         )
+        ignored_number_count += len(ignored_numbers)
+        ignored_number_notes = _format_ignored_number_notes(ignored_numbers)
 
         # Geen enkel geldig nummer
         if not numbers_to_try:
@@ -254,7 +303,9 @@ def run():
             )
             skipped.append({
                 "customer": customer_info,
-                "reason": "Geen geldig nummer"
+                "reason": "; ".join(
+                    ["Geen geldig nummer", *ignored_number_notes]
+                ) if ignored_number_notes else "Geen geldig nummer"
             })
             continue
 
@@ -336,7 +387,13 @@ def run():
                     "customer": customer_info,
                     "phone_used": phone_number,
                     "num_type": num_type,
-                    "note": "via LocPhone (fallback)" if num_type == "phone" else "",
+                    "note": "; ".join([
+                        note for note in [
+                            "via LocPhone (fallback)" if num_type == "phone" else "",
+                            *ignored_number_notes,
+                        ] if note
+                    ]),
+                    "ignored_numbers": ignored_numbers,
                 })
                 customer_sent = True
                 logger.info(f"✅ Verstuurd: {customer['name']} → {phone_number}")
@@ -380,7 +437,9 @@ def run():
             )
             skipped.append({
                 "customer": customer_info,
-                "reason": reason
+                "reason": "; ".join([
+                    note for note in [reason, *ignored_number_notes] if note
+                ])
             })
 
     # ── Stap 8 & 9: Samenvattingsberichten ──────────────────────────────────
@@ -388,11 +447,13 @@ def run():
         f"Run klaar: {len(successes)} verstuurd, "
         f"{len(failures)} mislukt, "
         f"{len(skipped)} overgeslagen, "
-        f"{excluded_count} uitgesloten"
+        f"{excluded_count} uitgesloten, "
+        f"{ignored_number_count} nummers genegeerd"
     )
 
-    send_success_summary(successes, run_date)
-    send_failure_summary(failures, run_date)
+    _send_summary_safely("Successen", send_success_summary, successes, run_date)
+    _send_summary_safely("Failures", send_failure_summary, failures, run_date)
+    _send_summary_safely("Overgeslagen", send_skipped_summary, skipped, run_date)
 
     # ── Stap 10: Afsluiting ──────────────────────────────────────────────────
     duration = time.time() - start_time
@@ -402,6 +463,7 @@ def run():
         failed_count=len(failures),
         skipped_count=len(skipped),
         excluded_count=excluded_count,
+        ignored_number_count=ignored_number_count,
         duration_seconds=duration
     )
 

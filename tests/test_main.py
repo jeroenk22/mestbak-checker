@@ -238,6 +238,26 @@ def test_mobile_failure_fallback_to_phone():
     print("✅ test_mobile_failure_fallback_to_phone geslaagd")
 
 
+def test_success_notes_ignored_emergency_number():
+    """
+    Als een klant via mobile bereikt wordt maar LocPhone "(alleen spoed)" bevat,
+    staat dat als genegeerd nummer in de succesdetails.
+    """
+    customers = [
+        _make_customer("Klant Spoed", "0612345678", "0031653301960 (alleen spoed)"),
+    ]
+
+    successes, failures = _run_with_customers(customers, [
+        (True, "ok"),
+    ])
+
+    assert len(successes) == 1
+    assert len(failures) == 0
+    assert "LocPhone genegeerd (alleen spoed)" in successes[0]["note"]
+    assert successes[0]["ignored_numbers"][0]["reason"] == "alleen spoed"
+    print("✅ test_success_notes_ignored_emergency_number geslaagd")
+
+
 def test_excluded_number_is_reported_with_number():
     """Een volledig uitgesloten klant krijgt een duidelijke skip-reden."""
     customers = [
@@ -282,6 +302,53 @@ def test_excluded_number_is_reported_with_number():
 
 
 # ─── Cutoff check ────────────────────────────────────────────────────────────
+
+def test_summary_error_does_not_block_completion_message():
+    """Als een detail-summary faalt, wordt de eindtelling nog steeds geprobeerd."""
+    customers = [
+        _make_customer("Klant A", "0612345678", ""),
+    ]
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        stack.enter_context(patch("main.get_customers_for_date", return_value=customers))
+        stack.enter_context(patch("main.load_excluded", return_value=set()))
+        stack.enter_context(patch("main.is_excluded", return_value=False))
+        stack.enter_context(patch("main.register_success"))
+        stack.enter_context(patch("main.send_whatsapp", return_value=(True, "ok")))
+        stack.enter_context(patch("main.send_success_summary", side_effect=RuntimeError("kapot")))
+        stack.enter_context(patch("main.send_failure_summary"))
+        stack.enter_context(patch("main.send_skipped_summary"))
+        mock_completion = stack.enter_context(patch("main.send_completion_message"))
+        stack.enter_context(patch("main.send_system_message"))
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", False))
+        stack.enter_context(patch("main.MAX_CUTOFF_HOUR", 23))
+        stack.enter_context(patch("main.MAX_CUTOFF_MINUTE", 59))
+        mock_logger_error = stack.enter_context(patch("main.logger.error"))
+
+        checker = MockChecker.return_value
+        checker.is_nl_holiday.return_value = (False, "")
+        checker.is_be_holiday.return_value = (False, "")
+        checker.is_de_holiday.return_value = (False, "")
+        checker.next_workday.return_value = __import__("datetime").date.today()
+        checker.get_holiday_scenario.return_value = {
+            "scenario": "normal",
+            "next_workday": __import__("datetime").date.today(),
+            "nl_holiday_name": "",
+            "tomorrow_is_weekend": False,
+        }
+
+        import main as m
+        m.run()
+
+        mock_logger_error.assert_called_once()
+        assert "Successen samenvatting mislukt" in mock_logger_error.call_args[0][0]
+        mock_completion.assert_called_once()
+
+    print("✅ test_summary_error_does_not_block_completion_message geslaagd")
+
 
 class _AbortCalled(Exception):
     pass
@@ -586,7 +653,9 @@ def run_all_tests():
         test_dedup_mobile_falls_back_to_phone,
         test_dedup_duplicate_record_no_double_send,
         test_mobile_failure_fallback_to_phone,
+        test_success_notes_ignored_emergency_number,
         test_excluded_number_is_reported_with_number,
+        test_summary_error_does_not_block_completion_message,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
         test_run_queries_next_workday_on_friday,
