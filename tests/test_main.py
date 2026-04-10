@@ -327,6 +327,64 @@ def test_cutoff_enforced_outside_test_mode():
     print("✅ test_cutoff_enforced_outside_test_mode geslaagd")
 
 
+def test_run_queries_next_workday_on_friday():
+    """Op vrijdag wordt de DB-query voor de eerstvolgende NL-werkdag gedaan."""
+    from datetime import date as real_date
+
+    class FrozenDate(real_date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 4, 10)  # Vrijdag
+
+    query_date = real_date(2026, 4, 13)  # Maandag
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.date", FrozenDate))
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        mock_get_customers_for_date = stack.enter_context(
+            patch("main.get_customers_for_date", return_value=[])
+        )
+        mock_send_system_message = stack.enter_context(
+            patch("main.send_system_message")
+        )
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", False))
+        stack.enter_context(patch("main.MAX_CUTOFF_HOUR", 23))
+        stack.enter_context(patch("main.MAX_CUTOFF_MINUTE", 59))
+        stack.enter_context(
+            patch(
+                "main.get_runtime_config_diagnostics",
+                return_value={
+                    "dotenv_path": "C:\\repo\\.env",
+                    "test_mode_source": "dotenv",
+                    "test_mode_raw": "false",
+                    "dotenv_test_mode_raw": "false",
+                },
+            )
+        )
+
+        checker = MockChecker.return_value
+        checker.is_nl_holiday.return_value = (False, "")
+        checker.is_be_holiday.return_value = (False, "")
+        checker.is_de_holiday.return_value = (False, "")
+        checker.next_workday.return_value = query_date
+
+        try:
+            import main as m
+            m.run()
+            assert False, "Verwacht sys.exit(0) als er geen klanten zijn"
+        except SystemExit as e:
+            assert e.code == 0
+
+        checker.next_workday.assert_called_once_with(real_date(2026, 4, 10), "NL")
+        mock_get_customers_for_date.assert_called_once_with(query_date)
+        mock_send_system_message.assert_called_once()
+        assert "2026-04-13" in mock_send_system_message.call_args[0][0]
+
+    print("✅ test_run_queries_next_workday_on_friday geslaagd")
+
+
 def test_run_logs_config_diagnostics():
     """Startup logt uit welke bron TEST_MODE is afgeleid."""
     test_customers = [
@@ -487,6 +545,7 @@ def run_all_tests():
         test_mobile_failure_fallback_to_phone,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
+        test_run_queries_next_workday_on_friday,
         test_run_logs_config_diagnostics,
         test_test_mode_rejects_unmarked_customer_records,
         test_test_mode_rejects_numbers_outside_test_allowlist,
