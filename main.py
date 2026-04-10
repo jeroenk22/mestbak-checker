@@ -207,15 +207,14 @@ def run():
         customers = _get_test_customers()
         assert_safe_test_customers(customers)
     else:
-        from datetime import timedelta
-        tomorrow = today + timedelta(days=1)
+        query_date = checker.next_workday(today, "NL")
         try:
-            customers = get_customers_for_date(tomorrow)
+            customers = get_customers_for_date(query_date)
         except ConnectionError as e:
             abort(str(e))
 
         if not customers:
-            msg = f"Geen klanten gevonden in database voor {tomorrow}"
+            msg = f"Geen klanten gevonden in database voor {query_date}"
             logger.info(msg)
             send_system_message(f"ℹ️ Mestbak-checker: {msg}")
             sys.exit(0)
