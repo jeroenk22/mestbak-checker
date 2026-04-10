@@ -116,6 +116,32 @@ def send_failure_summary(failures: list[dict], run_date: str):
     logger.info(f"Failures samenvatting verstuurd ({len(failures)} klanten)")
 
 
+def send_skipped_summary(skipped: list[dict], run_date: str):
+    """
+    Stuur samenvattingsbericht met klanten die helemaal zijn overgeslagen.
+    Bewust genegeerde extra nummers bij een wel bereikte klant staan in de successen.
+    """
+    if not skipped:
+        return  # Geen volledig overgeslagen klanten = geen bericht nodig
+
+    header = (
+        f"⏭️ OVERGESLAGEN — Mestbak-checker {run_date}\n"
+        f"{len(skipped)} klant(en) niet benaderd:"
+    )
+
+    lines = []
+    for item in skipped:
+        line = _format_customer_line(
+            item["customer"],
+            "-",
+            detail=item.get("reason", "Onbekende reden")
+        )
+        lines.append(line)
+
+    _send_multipart(header, lines)
+    logger.info(f"Overgeslagen samenvatting verstuurd ({len(skipped)} klanten)")
+
+
 def send_abort_message(reason: str):
     """Stuur een bericht bij vroegtijdig afbreken van het script."""
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -130,7 +156,8 @@ def send_completion_message(
     failed_count: int,
     skipped_count: int,
     excluded_count: int,
-    duration_seconds: float
+    duration_seconds: float,
+    ignored_number_count: int = 0
 ):
     """Stuur afsluitend bericht met statistieken."""
     mins = int(duration_seconds // 60)
@@ -141,8 +168,9 @@ def send_completion_message(
         f"🏁 Mestbak-checker klaar — {run_date}\n\n"
         f"✅ Verstuurd:    {sent_count}\n"
         f"❌ Mislukt:      {failed_count}\n"
-        f"⏭️ Overgeslagen: {skipped_count}\n"
+        f"⏭️ Klanten overgeslagen: {skipped_count}\n"
         f"🚫 Uitgesloten:  {excluded_count}\n"
+        f"📵 Nummers genegeerd: {ignored_number_count}\n"
         f"⏱️ Duur:         {duration_str}"
     )
     send_system_message(msg)
