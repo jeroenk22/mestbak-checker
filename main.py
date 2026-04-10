@@ -261,6 +261,8 @@ def run():
         # Verwerk elk nummer
         customer_sent = False
         any_send_attempted = False  # Werd er daadwerkelijk een API-call gedaan?
+        seen_skipped_numbers = []
+        excluded_numbers = []
 
         for num_type, raw, phone_number in numbers_to_try:
             if customer_sent:
@@ -270,6 +272,7 @@ def run():
             # Alleen dit specifieke nummer overslaan; het volgende nummer (fallback)
             # krijgt nog een kans. customer_sent blijft False zodat de lus doorgaat.
             if phone_number in seen_phones:
+                seen_skipped_numbers.append(phone_number)
                 logger.debug(
                     f"Nummer al verzonden vandaag, probeer volgend nummer: "
                     f"{customer['name']} → {phone_number} ({num_type})"
@@ -279,6 +282,7 @@ def run():
             # Exclude check per nummer
             if is_excluded(phone_number):
                 logger.info(f"Uitgesloten: {phone_number} ({customer['name']})")
+                excluded_numbers.append(phone_number)
                 excluded_count += 1
                 continue
 
@@ -360,14 +364,23 @@ def run():
         # Klant volledig afgehandeld zonder verzendpoging → alle nummers
         # waren al eerder vandaag verstuurd of uitgesloten.
         if not customer_sent and not any_send_attempted:
-            deduped = [n for _, _, n in numbers_to_try if n in seen_phones]
+            reasons = []
+            if seen_skipped_numbers:
+                reasons.append(
+                    "al verzonden: " + ", ".join(seen_skipped_numbers)
+                )
+            if excluded_numbers:
+                reasons.append(
+                    "uitgesloten: " + ", ".join(excluded_numbers)
+                )
+            reason = "; ".join(reasons) or "Geen verzendpoging gedaan"
             logger.info(
                 f"Overgeslagen (nummers al verzonden vandaag of uitgesloten): "
-                f"{customer['name']} | {deduped}"
+                f"{customer['name']} | {reason}"
             )
             skipped.append({
                 "customer": customer_info,
-                "reason": f"Nummers al verzonden of uitgesloten: {', '.join(deduped)}"
+                "reason": reason
             })
 
     # ── Stap 8 & 9: Samenvattingsberichten ──────────────────────────────────

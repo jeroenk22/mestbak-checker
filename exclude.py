@@ -8,6 +8,7 @@ import os
 from datetime import datetime
 from logger import logger
 from config import EXCLUDED_FILE, FAILURE_COUNTS_FILE, MAX_FAILURES_BEFORE_EXCLUDE, DATA_DIR
+from utils import normalize_phone
 
 # Zorg dat data map bestaat
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -45,9 +46,21 @@ def load_failure_counts() -> dict:
 
 
 def is_excluded(phone: str) -> bool:
-    """Controleer of een nummer op de excludelijst staat."""
+    """Controleer of een nummer op de excludelijst staat.
+
+    Vergelijkt genormaliseerd, zodat +31612345678 ook matcht met databasewaarden
+    zoals 0612345678, 06-12345678 of 06 12 34 5678.
+    """
     excluded = load_excluded()
-    return phone in excluded
+    normalized_phone = normalize_phone(phone) or phone
+
+    if phone in excluded or normalized_phone in excluded:
+        return True
+
+    return any(
+        (normalize_phone(excluded_phone) or excluded_phone) == normalized_phone
+        for excluded_phone in excluded
+    )
 
 
 def register_failure(phone: str, customer_info: dict) -> bool:
@@ -138,7 +151,8 @@ def get_failure_count(phone: str) -> int:
 def manually_exclude(phone: str, customer_info: dict, reason: str = "Handmatig uitgesloten"):
     """Voeg een nummer handmatig toe aan de excludelijst."""
     excluded = load_excluded()
-    excluded[phone] = {
+    normalized_phone = normalize_phone(phone) or phone
+    excluded[normalized_phone] = {
         "auto_excluded": False,
         "excluded_at": datetime.now().isoformat(),
         "reason": reason,
@@ -157,4 +171,4 @@ def manually_exclude(phone: str, customer_info: dict, reason: str = "Handmatig u
         ),
     }
     _save_json(EXCLUDED_FILE, excluded)
-    logger.info(f"Handmatig uitgesloten: {phone} | {reason}")
+    logger.info(f"Handmatig uitgesloten: {normalized_phone} | {reason}")
