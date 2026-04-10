@@ -238,6 +238,49 @@ def test_mobile_failure_fallback_to_phone():
     print("✅ test_mobile_failure_fallback_to_phone geslaagd")
 
 
+def test_excluded_number_is_reported_with_number():
+    """Een volledig uitgesloten klant krijgt een duidelijke skip-reden."""
+    customers = [
+        _make_customer("Klant Exclude", "0612345678", ""),
+    ]
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        stack.enter_context(patch("main.get_customers_for_date", return_value=customers))
+        stack.enter_context(patch("main.load_excluded", return_value={"+31612345678": {}}))
+        stack.enter_context(patch("main.is_excluded", return_value=True))
+        mock_send_whatsapp = stack.enter_context(patch("main.send_whatsapp"))
+        stack.enter_context(patch("main.send_success_summary"))
+        stack.enter_context(patch("main.send_failure_summary"))
+        mock_completion = stack.enter_context(patch("main.send_completion_message"))
+        stack.enter_context(patch("main.send_system_message"))
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", False))
+        stack.enter_context(patch("main.MAX_CUTOFF_HOUR", 23))
+        stack.enter_context(patch("main.MAX_CUTOFF_MINUTE", 59))
+        mock_logger_info = stack.enter_context(patch("main.logger.info"))
+
+        checker = MockChecker.return_value
+        checker.is_nl_holiday.return_value = (False, "")
+        checker.is_be_holiday.return_value = (False, "")
+        checker.is_de_holiday.return_value = (False, "")
+        checker.next_workday.return_value = __import__("datetime").date.today()
+
+        import main as m
+        m.run()
+
+        mock_send_whatsapp.assert_not_called()
+        mock_completion.assert_called_once()
+        completion_kwargs = mock_completion.call_args.kwargs
+        assert completion_kwargs["skipped_count"] == 1
+        assert completion_kwargs["excluded_count"] == 1
+        logged = "\n".join(str(call.args[0]) for call in mock_logger_info.call_args_list if call.args)
+        assert "uitgesloten: +31612345678" in logged
+
+    print("✅ test_excluded_number_is_reported_with_number geslaagd")
+
+
 # ─── Cutoff check ────────────────────────────────────────────────────────────
 
 class _AbortCalled(Exception):
@@ -543,6 +586,7 @@ def run_all_tests():
         test_dedup_mobile_falls_back_to_phone,
         test_dedup_duplicate_record_no_double_send,
         test_mobile_failure_fallback_to_phone,
+        test_excluded_number_is_reported_with_number,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
         test_run_queries_next_workday_on_friday,

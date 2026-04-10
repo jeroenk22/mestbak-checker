@@ -27,6 +27,7 @@ from tests.test_messaging_unit import (
     test_send_whatsapp_waits_before_next_message,
 )
 from tests.test_utils import run_all_tests as test_utils
+from tests.test_exclude import run_all_tests as test_exclude
 from tests.test_main import run_all_tests as test_main
 from tests.test_db import run_all_tests as test_db
 
@@ -74,6 +75,7 @@ if __name__ == "__main__":
     results.append(("Message Builder (berichten)", test_messages()))
     results.append(("Holidays (feestdagen)", test_holidays()))
     results.append(("Messaging (throttling)", test_messaging()))
+    results.append(("Exclude lijst", test_exclude()))
     results.append(("Main dispatch (resolve + dedup)", test_main()))
     results.append(("DB query laden (sql/query.sql)", test_db()))
 

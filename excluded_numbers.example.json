@@ -1,0 +1,26 @@
+{
+  "+31612345678": {
+    "auto_excluded": false,
+    "excluded_at": "2026-04-10T00:00:00",
+    "reason": "Handmatig uitgesloten",
+    "sj_order_id": "",
+    "name": "Voorbeeld handmatig",
+    "street": "",
+    "zip": "",
+    "city": "",
+    "country": "NL",
+    "_comment": "Handmatig voorbeeld - kopieer deze entry naar data/excluded_numbers.json en vervang het nummer"
+  },
+  "+31687654321": {
+    "auto_excluded": true,
+    "excluded_at": "2026-04-10T00:00:00",
+    "failure_count": 3,
+    "sj_order_id": "VOORBEELD-001",
+    "name": "Voorbeeld automatisch",
+    "street": "Voorbeeldstraat 1",
+    "zip": "1234 AB",
+    "city": "Voorbeeldstad",
+    "country": "NL",
+    "_comment": "Automatisch voorbeeld - zo ziet een systeem-exclude na failures eruit"
+  }
+}
