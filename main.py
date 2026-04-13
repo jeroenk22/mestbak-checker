@@ -219,6 +219,12 @@ def run():
     logger.info("Config geladen ✓")
 
     # ── Stap 3: Feestdagen ophalen ───────────────────────────────────────────
+    if today.weekday() >= 5:
+        msg = "Vandaag is het weekend, script stopt zonder berichten te versturen"
+        logger.info(msg)
+        send_system_message(f"â„¹ï¸ Mestbak-checker niet uitgevoerd\n{today}\n\nReden: {msg}")
+        sys.exit(0)
+
     checker = HolidayChecker()
     try:
         checker.fetch_all(today)
