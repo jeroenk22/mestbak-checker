@@ -437,6 +437,61 @@ def test_cutoff_enforced_outside_test_mode():
     print("✅ test_cutoff_enforced_outside_test_mode geslaagd")
 
 
+def test_run_stops_on_weekend_before_any_send_or_query():
+    """In het weekend stopt run() vroegtijdig zonder query of klantberichten."""
+    from datetime import date as real_date
+
+    class FrozenWeekendDate(real_date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 4, 11)  # Zaterdag
+
+    with ExitStack() as stack:
+        stack.enter_context(patch("main.date", FrozenWeekendDate))
+        stack.enter_context(patch("main.validate_config", return_value=[]))
+        MockChecker = stack.enter_context(patch("main.HolidayChecker"))
+        mock_get_customers_for_date = stack.enter_context(
+            patch("main.get_customers_for_date")
+        )
+        mock_send_whatsapp = stack.enter_context(patch("main.send_whatsapp"))
+        mock_send_system_message = stack.enter_context(
+            patch("main.send_system_message")
+        )
+        stack.enter_context(patch("main.cleanup_old_logs"))
+        stack.enter_context(patch("main.TEST_MODE", False))
+        stack.enter_context(patch("main.MAX_CUTOFF_HOUR", 23))
+        stack.enter_context(patch("main.MAX_CUTOFF_MINUTE", 59))
+        stack.enter_context(
+            patch(
+                "main.get_runtime_config_diagnostics",
+                return_value={
+                    "dotenv_path": "C:\\repo\\.env",
+                    "test_mode_source": "dotenv",
+                    "test_mode_raw": "false",
+                    "dotenv_test_mode_raw": "false",
+                },
+            )
+        )
+
+        checker = MockChecker.return_value
+
+        try:
+            import main as m
+            m.run()
+            assert False, "Verwacht sys.exit(0) in het weekend"
+        except SystemExit as e:
+            assert e.code == 0
+
+        checker.fetch_all.assert_not_called()
+        mock_get_customers_for_date.assert_not_called()
+        mock_send_whatsapp.assert_not_called()
+        mock_send_system_message.assert_called_once()
+        assert "weekend" in mock_send_system_message.call_args[0][0].lower()
+        assert "2026-04-11" in mock_send_system_message.call_args[0][0]
+
+    print("âœ… test_run_stops_on_weekend_before_any_send_or_query geslaagd")
+
+
 def test_run_queries_next_workday_on_friday():
     """Op vrijdag wordt de DB-query voor de eerstvolgende NL-werkdag gedaan."""
     from datetime import date as real_date
@@ -658,6 +713,7 @@ def run_all_tests():
         test_summary_error_does_not_block_completion_message,
         test_cutoff_skipped_in_test_mode,
         test_cutoff_enforced_outside_test_mode,
+        test_run_stops_on_weekend_before_any_send_or_query,
         test_run_queries_next_workday_on_friday,
         test_run_logs_config_diagnostics,
         test_test_mode_rejects_unmarked_customer_records,
